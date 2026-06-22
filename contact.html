@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact — Kune-Bosomfour Luxury Hotel</title>
+<meta name="description" content="Get in touch with Kune-Bosomfour Luxury Hotel to make a reservation or enquiry.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header site-header--solid">
+  <div class="header-inner">
+    <a href="index.html" class="logo">
+      <svg class="logo-mark" viewBox="0 0 60 60" aria-hidden="true"><use href="#sankofa-icon"></use></svg>
+      <span class="logo-text">Kune-Bosomfour</span>
+    </a>
+    <nav class="main-nav" aria-label="Primary">
+      <a href="index.html">Home</a>
+      <a href="rooms.html">Rooms</a>
+      <a href="dining.html">Dining</a>
+      <a href="amenities.html">Amenities</a>
+      <a href="contact.html" class="nav-active">Contact</a>
+    </nav>
+    <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <div class="page-hero">
+    <p class="eyebrow">Get in Touch</p>
+    <h1 class="page-hero-title">Contact Us</h1>
+    <p class="page-hero-sub">We'd love to host you. Send us a message and we'll respond within 24 hours.</p>
+  </div>
+
+  <section class="contact">
+    <div class="contact-grid">
+      <div class="contact-info">
+        <div class="contact-block">
+          <h3>Address</h3>
+          <p>Kune-Bosomfour Luxury Hotel<br>Nkoranza North<br>Bono East Region, Ghana</p>
+        </div>
+        <div class="contact-block">
+          <h3>Phone</h3>
+          <p><a href="tel:+233598263383">0598 263 383</a></p>
+        </div>
+        <div class="contact-block">
+          <h3>Email</h3>
+          <p><a href="mailto:alhassanalifa99@gmail.com">alhassanalifa99@gmail.com</a></p>
+        </div>
+        <div class="contact-block">
+          <h3>Hours</h3>
+          <p>Reception open 24 hours<br>Check-in from 14:00<br>Check-out by 12:00</p>
+        </div>
+      </div>
+
+      <form class="contact-form" id="contact-form" novalidate>
+        <div class="form-row">
+          <div class="form-field">
+            <label for="name">Full name</label>
+            <input type="text" id="name" name="name" placeholder="Your name" required>
+          </div>
+          <div class="form-field">
+            <label for="email">Email address</label>
+            <input type="email" id="email" name="email" placeholder="you@example.com" required>
+          </div>
+        </div>
+        <div class="form-field">
+          <label for="subject">Subject</label>
+          <select id="subject" name="subject">
+            <option value="">Select a topic</option>
+            <option>Room reservation</option>
+            <option>Dining reservation</option>
+            <option>Event or conference enquiry</option>
+            <option>General enquiry</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="message">Message</label>
+          <textarea id="message" name="message" rows="5" placeholder="Tell us how we can help…" required></textarea>
+        </div>
+        <button type="submit" class="btn-gold">Send message</button>
+        <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+
+    <div class="contact-map">
+      <iframe
+        title="Kune-Bosomfour Luxury Hotel location — Accra, Ghana"
+        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d63592.0!2d-1.7!3d7.65!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xfdb7a4b2e1a0001%3A0x0!2sNkoranza+North%2C+Ghana!5e0!3m2!1sen!2sgh!4v1718900000000"
+        width="100%"
+        height="400"
+        style="border:0;"
+        allowfullscreen=""
+        loading="lazy"
+        referrerpolicy="no-referrer-when-downgrade">
+      </iframe>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <a href="index.html" class="logo">
+      <svg class="logo-mark" viewBox="0 0 60 60" aria-hidden="true"><use href="#sankofa-icon"></use></svg>
+      <span class="logo-text">Kune-Bosomfour</span>
+    </a>
+    <p class="footer-copy">© 2026 Kune-Bosomfour Luxury Hotel, Accra, Ghana. All rights reserved.</p>
+    <nav class="footer-nav">
+      <a href="rooms.html">Rooms</a>
+      <a href="dining.html">Dining</a>
+      <a href="amenities.html">Amenities</a>
+      <a href="contact.html">Contact</a>
+    </nav>
+  </div>
+</footer>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="sankofa-icon" viewBox="0 0 200 200">
+    <g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M70 150 C55 150 45 138 45 122 C45 100 62 86 85 86 C100 86 110 92 116 100" />
+      <path d="M70 150 L65 172" /><path d="M85 150 L88 172" />
+      <path d="M50 128 L28 120" /><path d="M48 138 L24 136" /><path d="M50 148 L28 152" />
+      <path d="M116 100 C128 90 130 74 118 64 C108 56 94 58 88 68" />
+      <circle cx="88" cy="68" r="9" /><path d="M80 65 L68 60" />
+      <ellipse cx="100" cy="92" rx="8" ry="11" transform="rotate(20 100 92)" />
+    </g>
+  </symbol>
+</svg>
+<script src="script.js"></script>
+</body>
+</html>
