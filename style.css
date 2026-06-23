@@ -1033,3 +1033,266 @@ img { max-width: 100%; display: block; }
   .contact-map { padding: 0 20px; }
   .contact-map iframe { height: 280px; }
 }
+
+/* ============================================
+   Nav Book Now button
+   ============================================ */
+.nav-book {
+  background: var(--gold) !important;
+  color: var(--ink) !important;
+  padding: 8px 18px !important;
+  border-radius: 2px;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  transition: background 0.2s ease !important;
+}
+.nav-book:hover { background: var(--gold-soft) !important; }
+
+/* ============================================
+   Booking page
+   ============================================ */
+.booking-page {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 32px 130px;
+}
+
+.booking-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 56px;
+  align-items: start;
+}
+
+.booking-form-title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.5rem;
+  color: var(--parchment);
+  margin: 0 0 28px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.booking-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.field-optional {
+  font-size: 0.72rem;
+  color: var(--parchment);
+  opacity: 0.45;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.booking-summary {
+  background: rgba(201,162,39,0.07);
+  border: 1px solid var(--border-muted);
+  border-radius: 3px;
+  padding: 20px 22px;
+}
+
+.booking-summary h3 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--gold-soft);
+  margin: 0 0 14px;
+}
+
+.summary-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--parchment);
+  opacity: 0.85;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-muted);
+}
+.summary-row:last-child { border-bottom: none; padding-bottom: 0; }
+.summary-row strong { color: var(--gold-soft); }
+
+.btn-gold--wide {
+  width: 100%;
+  text-align: center;
+  padding: 15px;
+  font-size: 1rem;
+}
+
+.booking-note {
+  font-size: 0.8rem;
+  color: var(--parchment);
+  opacity: 0.55;
+  margin: 0;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.booking-note a { color: var(--gold-soft); opacity: 1; }
+
+/* Sidebar */
+.booking-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: sticky;
+  top: 24px;
+}
+
+.sidebar-card {
+  background: var(--ink-soft);
+  border: 1px solid var(--border-muted);
+  border-radius: 3px;
+  padding: 22px;
+}
+
+.sidebar-card h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1rem;
+  color: var(--parchment);
+  margin: 0 0 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.rate-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rate-list li {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  color: var(--parchment);
+  opacity: 0.85;
+}
+
+.rate-list strong { color: var(--gold-soft); }
+
+.rate-note {
+  font-size: 0.75rem;
+  color: var(--parchment);
+  opacity: 0.5;
+  margin: 0;
+}
+
+.policy-list {
+  list-style: none;
+  margin: 0; padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: var(--parchment);
+  opacity: 0.82;
+}
+
+.policy-list strong { color: var(--parchment); opacity: 1; }
+
+.sidebar-card--contact p {
+  font-size: 0.88rem;
+  color: var(--parchment);
+  opacity: 0.78;
+  margin: 0 0 16px;
+}
+
+@media (max-width: 880px) {
+  .booking-layout {
+    grid-template-columns: 1fr;
+  }
+  .booking-sidebar { position: static; }
+}
+
+@media (max-width: 560px) {
+  .booking-page { padding: 0 20px 80px; }
+}
+
+/* ============================================
+   Ashcal Hotel real logo
+   ============================================ */
+.logo-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* Hero watermark — large faint logo in background */
+.hero-watermark-logo {
+  position: absolute;
+  right: -80px;
+  bottom: -40px;
+  width: 520px;
+  height: 520px;
+  object-fit: contain;
+  opacity: 0.08;
+  z-index: 1;
+  pointer-events: none;
+  filter: brightness(10);
+}
+
+/* Remove old SVG logo-mark sizing since we now use an img */
+.logo-mark { display: none; }
+
+@media (max-width: 720px) {
+  .hero-watermark-logo { width: 300px; height: 300px; right: -60px; }
+  .logo-img { width: 40px; height: 40px; }
+}
+
+/* ============================================
+   Hero watermark logo — override to center & enlarge
+   ============================================ */
+.hero-watermark-logo {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 480px !important;
+  height: 480px !important;
+  object-fit: contain !important;
+  opacity: 0.12 !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+  filter: brightness(10) !important;
+}
+
+@media (max-width: 720px) {
+  .hero-watermark-logo {
+    width: 280px !important;
+    height: 280px !important;
+  }
+}
+
+/* ============================================
+   Restore Sankofa hero watermark
+   ============================================ */
+.hero-watermark {
+  position: absolute;
+  right: -60px;
+  bottom: -40px;
+  width: 480px;
+  height: 480px;
+  color: var(--gold);
+  opacity: 0.07;
+  z-index: 1;
+  pointer-events: none;
+}
