@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Book a Room — Ashcal Hotel</title>
-<meta name="description" content="Book your stay at Ashcal Hotel, Tamale, Ghana. Choose your room, dates, and guests.">
+<title>Book a Room — Mariam Hotel</title>
+<meta name="description" content="Book your stay at Mariam Hotel, Tamale, Ghana. Choose your room, dates, and guests.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -15,8 +15,8 @@
 <header class="site-header site-header--solid">
   <div class="header-inner">
     <a href="index.html" class="logo">
-      <img class="logo-img" src="images/ashcal-logo.png" alt="Ashcal Hotel logo">
-      <span class="logo-text">Ashcal Hotel</span>
+      <img class="logo-img" src="images/mariam-logo.png" alt="Mariam Hotel logo">
+      <span class="logo-text">Mariam Hotel</span>
     </a>
     <nav class="main-nav" aria-label="Primary">
       <a href="index.html">Home</a>
@@ -88,12 +88,15 @@
           <label for="room-type">Room type</label>
           <select id="room-type" name="room-type">
             <option value="">Select a room</option>
-            <option value="regular">Regular Room — from ₵650 / night</option>
-            <option value="double">Double Room — from ₵950 / night</option>
-            <option value="triple">Triple Room — from ₵1,250 / night</option>
-            <option value="vip">VIP Room — from ₵1,950 / night</option>
-            <option value="vvip">VVIP Room — from ₵2,950 / night</option>
-            <option value="presidential">Presidential Suite — from ₵4,200 / night</option>
+            <option value="single">Single Room — from ₵600 / night</option>
+            <option value="standard">Standard Room — from ₵670 / night</option>
+            <option value="execstandard">Executive Standard — from ₵725 / night</option>
+            <option value="execdouble">Executive Double — from ₵790 / night</option>
+            <option value="twin">Twin Room — from ₵1,000 / night</option>
+            <option value="mariam">Mariam Suite — from ₵1,100 / night</option>
+            <option value="deluxe">Deluxe — from ₵1,150 / night</option>
+            <option value="family">Family Suite — from ₵1,450 / night</option>
+            <option value="executive">Executive Suite — from ₵2,400 / night</option>
           </select>
         </div>
 
@@ -109,19 +112,22 @@
 
         <button type="submit" class="btn-gold btn-gold--wide">Confirm reservation</button>
         <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
-        <p class="booking-note">We'll send a confirmation to your email within 24 hours. For urgent enquiries call <a href="tel:+233598263383">0598 263 383</a>.</p>
+        <p class="booking-note">We'll send a confirmation to your email within 24 hours. For urgent enquiries call <a href="tel:+233558091276">0598 263 383</a>.</p>
       </form>
 
       <aside class="booking-sidebar">
         <div class="sidebar-card">
           <h3>Room rates</h3>
           <ul class="rate-list">
-            <li><span>Regular</span><strong>₵650</strong></li>
-            <li><span>Double</span><strong>₵950</strong></li>
-            <li><span>Triple</span><strong>₵1,250</strong></li>
-            <li><span>VIP</span><strong>₵1,950</strong></li>
-            <li><span>VVIP</span><strong>₵2,950</strong></li>
-            <li><span>Presidential</span><strong>₵4,200</strong></li>
+            <li><span>Single Room</span><strong>₵600</strong></li>
+            <li><span>Standard Room</span><strong>₵670</strong></li>
+            <li><span>Executive Standard</span><strong>₵725</strong></li>
+            <li><span>Executive Double</span><strong>₵790</strong></li>
+            <li><span>Twin Room</span><strong>₵1,000</strong></li>
+            <li><span>Mariam Suite</span><strong>₵1,100</strong></li>
+            <li><span>Deluxe</span><strong>₵1,150</strong></li>
+            <li><span>Family Suite</span><strong>₵1,450</strong></li>
+            <li><span>Executive Suite</span><strong>₵2,400</strong></li>
           </ul>
           <p class="rate-note">Rates are per room per night. Breakfast included.</p>
         </div>
@@ -139,7 +145,7 @@
         <div class="sidebar-card sidebar-card--contact">
           <h3>Need help?</h3>
           <p>Our team is available 24/7 to assist with your reservation.</p>
-          <a href="tel:+233598263383" class="btn-outline">Call 0598 263 383</a>
+          <a href="tel:+233558091276" class="btn-outline">Call +233 55 809 1276</a>
         </div>
       </aside>
 
@@ -150,10 +156,10 @@
 <footer class="site-footer">
   <div class="footer-inner">
     <a href="index.html" class="logo">
-      <img class="logo-img" src="images/ashcal-logo.png" alt="Ashcal Hotel logo">
-      <span class="logo-text">Ashcal Hotel</span>
+      <img class="logo-img" src="images/mariam-logo.png" alt="Mariam Hotel logo">
+      <span class="logo-text">Mariam Hotel</span>
     </a>
-    <p class="footer-copy">© 2026 Ashcal Hotel, Tamale, Ghana. All rights reserved.</p>
+    <p class="footer-copy">© 2026 Mariam Hotel, Tamale, Ghana. All rights reserved.</p>
     <nav class="footer-nav">
       <a href="rooms.html">Rooms</a>
       <a href="dining.html">Dining</a>
@@ -176,6 +182,7 @@
     </g>
   </symbol>
 </svg>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
