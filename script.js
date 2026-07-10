@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Booking form — Formspree (hotel copy) + EmailJS (guest confirmation)
+  // Booking form — send directly to local bookings API and preserve summary UI
   const bookingForm = document.getElementById('booking-form');
   if (bookingForm) {
     const checkin     = document.getElementById('checkin');
@@ -75,11 +75,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const summary     = document.getElementById('booking-summary');
     const summaryRows = document.getElementById('summary-rows');
     const status      = document.getElementById('form-status');
+    const selectedRoomBanner = document.getElementById('selected-room-banner');
 
     const rates = {
       single: 600, standard: 670, execstandard: 725,
       execdouble: 790, twin: 1000, mariam: 1100,
       deluxe: 1150, family: 1450, executive: 2400
+    };
+
+    const roomIdMap = {
+      single: 1,
+      standard: 2,
+      execstandard: 3,
+      execdouble: 4,
+      twin: 5,
+      mariam: 6,
+      deluxe: 7,
+      family: 8,
+      executive: 9
     };
 
     const roomNames = {
@@ -92,6 +105,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const today = new Date().toISOString().split('T')[0];
     checkin.min  = today;
     checkout.min = today;
+
+    const params = new URLSearchParams(window.location.search);
+    const preselectedRoomName = params.get('roomName') || '';
+    const preselectedRoomType = params.get('roomType') || '';
+    const preselectedRoomRate = Number(params.get('roomRate') || 0);
+
+    if (preselectedRoomName && preselectedRoomType) {
+      roomType.value = preselectedRoomType;
+      if (selectedRoomBanner) {
+        selectedRoomBanner.innerHTML = `<strong>${preselectedRoomName}</strong> — from ₵${preselectedRoomRate.toLocaleString()} / night`;
+        selectedRoomBanner.style.display = 'block';
+      }
+    }
 
     checkin.addEventListener('change', () => {
       if (checkin.value) {
@@ -173,28 +199,32 @@ document.addEventListener('DOMContentLoaded', () => {
       status.style.color = 'var(--gold-soft)';
 
       try {
-        // 1 — Send booking details to hotel via Formspree
-        const formRes = await fetch('https://formspree.io/f/xaqgvygj', {
+        const bookingPayload = {
+          guest_name: name || 'Guest',
+          guest_email: email || 'guest@example.com',
+          guest_phone: phone || 'Not provided',
+          room_id: roomIdMap[roomType.value] ?? 0,
+          room_name: room || 'Unspecified Room',
+          check_in_date: checkin.value || '',
+          check_out_date: checkout.value || '',
+          total_amount: total || 0,
+          booking_status: 'Pending',
+          guest_count: guests.value || 1,
+          special_requests: special || 'None'
+        };
+
+        const response = await fetch('http://localhost:5000/api/bookings', {
           method: 'POST',
           headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            _subject:           `New Booking — ${room} — ${name}`,
-            'Guest Name':       name,
-            'Guest Email':      email,
-            'Guest Phone':      phone || 'Not provided',
-            'Room Type':        room,
-            'Check-in':         formatDate(checkin.value),
-            'Check-out':        formatDate(checkout.value),
-            'Nights':           nights,
-            'Guests':           guests.value,
-            'Rate per Night':   `₵${rate.toLocaleString()}`,
-            'Total Estimate':   `₵${total.toLocaleString()}`,
-            'Special Requests': special || 'None'
-          })
+          body: JSON.stringify(bookingPayload)
         });
-        if (!formRes.ok) throw new Error('Formspree failed');
 
-        // 2 — Send confirmation email to guest via EmailJS
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(payload.error || 'Booking submission failed');
+        }
+
         await emailjs.send('service_om2fcka', 'template_3w1mfbl', {
           guest_name:  name,
           guest_email: email,
@@ -208,15 +238,19 @@ document.addEventListener('DOMContentLoaded', () => {
           special:     special || 'None'
         });
 
-        // Both succeeded
         status.style.color = 'var(--gold-soft)';
-        status.textContent = `Booking received! Thank you, ${name}. A confirmation has been sent to ${email}. We'll confirm within 24 hours.`;
+        status.textContent = `Booking received! Thank you, ${name}. A confirmation has been sent to ${email}.`;
         bookingForm.reset();
         summary.style.display = 'none';
+        if (selectedRoomBanner) {
+          selectedRoomBanner.style.display = 'none';
+          selectedRoomBanner.innerHTML = '';
+        }
 
       } catch (err) {
+        console.error(err);
         status.style.color = 'var(--terracotta)';
-        status.textContent = 'Something went wrong. Please call us on +233 55 809 1276 to complete your booking.';
+        status.textContent = err?.message || 'Something went wrong. Please call us on +233 55 809 1276 to complete your booking.';
       }
     });
   }
