@@ -392,3 +392,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export default app;
+if (!process.env.DATABASE_URL) {
+  console.error('❌ DATABASE_URL is not set. Check your environment variables.');
+  process.exit(1);
+}
