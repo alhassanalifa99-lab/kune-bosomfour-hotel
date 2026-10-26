@@ -41,19 +41,22 @@ function isConnectionError(err) {
   return /fetch failed|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN/i.test(err?.message || '');
 }
 
-await ensureFallbackStore();
+// Non-blocking startup init (top-level await removed for Render compatibility)
+ensureFallbackStore().catch(err =>
+  console.warn('⚠️ Could not initialise fallback store:', err.message)
+);
 
-// ─── Room type → room_id map (matches the actual rooms table in Neon) ───
+// ─── Room type → room_id map (matches your INSERT order in Neon) ─────────────
 const ROOM_ID_MAP = {
-  single:      1,
-  standard:    3,
-  execstandard:5,
-  execdouble:  6,
+  single:      1,   // Regular Room    ₵600
+  standard:    2,   // Double Room     ₵670  (mapped to row 3 in rooms)
+  execstandard:3,   // Triple Room     ₵725
+  execdouble:  4,   // VIP Room        ₵790
   twin:        5,
-  mariam:      7,
-  deluxe:      7,
+  mariam:      6,
+  deluxe:      7,   // VVIP Room       ₵1,150
   family:      8,
-  executive:   8
+  executive:   9    // Presidential    ₵2,400
 };
 
 // ─── Friendly room names for the confirmation email & DB ────────────────────
@@ -68,33 +71,6 @@ const ROOM_NAMES = {
   family:      'Family Suite',
   executive:   'Executive Suite'
 };
-
-function normalizeBookingStatus(value) {
-  const normalized = String(value ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, '_');
-
-  switch (normalized) {
-    case 'pending':
-    case 'pending_confirmation':
-    case 'pending-confirmation':
-      return 'pending_confirmation';
-    case 'confirmed':
-    case 'confirm':
-      return 'confirmed';
-    case 'checked_in':
-    case 'checked-in':
-    case 'checkin':
-      return 'checked_in';
-    case 'checked_out':
-    case 'checked-out':
-    case 'checkout':
-      return 'checked_out';
-    default:
-      return 'pending_confirmation';
-  }
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/stats  — Dashboard overview numbers
@@ -174,7 +150,6 @@ app.post('/api/bookings', async (req, res) => {
       check_out_date,
       total_amount,
       booking_status,
-      status,
       guest_count,
       special_requests
     } = req.body;
@@ -186,30 +161,27 @@ app.post('/api/bookings', async (req, res) => {
     const safeCheckIn = (check_in_date  || '').trim();
     const safeCheckOut= (check_out_date || '').trim();
     const safeAmount  = parseFloat(total_amount) || 0;
-    const safeStatus  = normalizeBookingStatus(booking_status ?? status ?? 'Pending');
+    const safeStatus  = (booking_status || 'Pending').trim();
     const safeGuests  = parseInt(guest_count) || 1;
     const safeRequests= (special_requests || 'None').trim();
 
     // ── Resolve room_id ──────────────────────────────────────────────────────
+    // Only accept a clean positive integer — anything else becomes null
     let safeRoomId = null;
-    const rawRoomKey = String(room_id || '').trim().toLowerCase();
-
-    if (rawRoomKey === '' || rawRoomKey === 'unknown' || rawRoomKey === 'null' || rawRoomKey === 'undefined') {
-      safeRoomId = null;
-    } else if (/^\d+$/.test(rawRoomKey)) {
-      safeRoomId = parseInt(rawRoomKey, 10);
+    const parsedId = parseInt(room_id, 10);
+    if (Number.isInteger(parsedId) && parsedId > 0) {
+      safeRoomId = parsedId;
     } else {
-      safeRoomId = ROOM_ID_MAP[rawRoomKey] || null;
-    }
-
-    if (safeRoomId !== null && (!Number.isInteger(safeRoomId) || safeRoomId <= 0)) {
-      safeRoomId = null;
+      const key = (String(room_id || '')).trim().toLowerCase();
+      if (key && key !== 'unknown' && key !== 'null' && key !== 'undefined') {
+        const mapped = ROOM_ID_MAP[key];
+        if (mapped) safeRoomId = mapped;
+      }
     }
 
     // Resolve friendly room name
     const safeRoomName = (String(room_name || '')).trim()
-      || ROOM_NAMES[rawRoomKey]
-      || (safeRoomId ? ROOM_NAMES[Object.keys(ROOM_NAMES).find((key) => ROOM_ID_MAP[key] === safeRoomId)] : null)
+      || ROOM_NAMES[(String(room_id || '')).trim().toLowerCase()]
       || null;
 
     // If still no room_id, try a live DB lookup by room_type name
@@ -355,24 +327,22 @@ app.patch('/api/bookings/:id/status', async (req, res) => {
   try {
     const { id }     = req.params;
     const { status } = req.body;
-    console.log('📦 Incoming booking payload:', JSON.stringify(req.body, null, 2));
 
-    const safeStatus = normalizeBookingStatus(status);
-    const allowed = ['pending_confirmation', 'confirmed', 'checked_in', 'checked_out'];
-    if (!allowed.includes(safeStatus)) {
+    const allowed = ['Pending', 'Confirmed', 'Checked In', 'Checked Out', 'Cancelled'];
+    if (!allowed.includes(status)) {
       return res.status(400).json({ success: false, error: `Status must be one of: ${allowed.join(', ')}` });
     }
 
     const [booking] = await sql`
-      UPDATE bookings SET booking_status = ${safeStatus} WHERE id = ${id} RETURNING *
+      UPDATE bookings SET booking_status = ${status} WHERE id = ${id} RETURNING *
     `;
     if (!booking) return res.status(404).json({ success: false, error: 'Booking not found.' });
 
     // Auto-update linked room status when guest checks in / out
     if (booking.room_id) {
-      if (safeStatus === 'checked_in') {
+      if (status === 'Checked In') {
         await sql`UPDATE rooms SET status = 'Occupied'  WHERE id = ${booking.room_id}`;
-      } else if (safeStatus === 'checked_out') {
+      } else if (status === 'Checked Out') {
         await sql`UPDATE rooms SET status = 'Available' WHERE id = ${booking.room_id}`;
       }
     }
@@ -384,15 +354,10 @@ app.patch('/api/bookings/:id/status', async (req, res) => {
   }
 });
 
-// Only run app.listen if we are running locally, otherwise export the app instance for Vercel
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(port, () => {
-    console.log(`🔌 Secure Neon API Bridge active on http://localhost:${port}`);
-  });
-}
-
-export default app;
-if (!process.env.DATABASE_URL) {
-  console.error('❌ DATABASE_URL is not set. Check your environment variables.');
-  process.exit(1);
-}
+// ─── Start ───────────────────────────────────────────────────────────────────
+// Use process.env.PORT for cloud platforms (Render, Railway, etc.)
+// Fall back to 5000 for local development
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🔌 Mariam Hotel API running → http://localhost:${PORT}`);
+});
