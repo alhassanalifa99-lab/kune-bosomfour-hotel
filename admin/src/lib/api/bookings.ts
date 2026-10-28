@@ -198,7 +198,11 @@ export async function checkInGuest(booking: BookingWithRoom): Promise<BookingWit
     if (response.ok) {
       const result = (await response.json()) as { booking?: Record<string, unknown> };
       if (result.booking) {
-        return normalizeBookingRow(result.booking);
+        const normalized = normalizeBookingRow(result.booking);
+        if (!normalized.rooms && booking.rooms) {
+          normalized.rooms = booking.rooms;
+        }
+        return normalized;
       }
     }
   } catch {
@@ -247,7 +251,11 @@ export async function checkOutGuest(booking: BookingWithRoom): Promise<BookingWi
     if (response.ok) {
       const result = (await response.json()) as { booking?: Record<string, unknown> };
       if (result.booking) {
-        return normalizeBookingRow(result.booking);
+        const normalized = normalizeBookingRow(result.booking);
+        if (!normalized.rooms && booking.rooms) {
+          normalized.rooms = booking.rooms;
+        }
+        return normalized;
       }
     }
   } catch {

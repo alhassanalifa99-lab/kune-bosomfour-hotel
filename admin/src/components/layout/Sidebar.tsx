@@ -50,7 +50,7 @@ export function Sidebar() {
   return (
     <aside className="admin-sidebar">
       <div className="sidebar-brand">
-        <h1>Mariam Hotel</h1>
+        <h1>Capalot Hotel</h1>
         <span>Admin Portal</span>
       </div>
 

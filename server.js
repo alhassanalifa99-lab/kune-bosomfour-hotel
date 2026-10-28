@@ -358,7 +358,19 @@ app.patch('/api/bookings/:id/status', async (req, res) => {
     }
 
     const [booking] = await sql`
-      UPDATE bookings SET booking_status = ${normalizedStatus} WHERE id = ${id} RETURNING *
+      WITH updated AS (
+        UPDATE bookings
+        SET booking_status = ${normalizedStatus}
+        WHERE id = ${id}
+        RETURNING *
+      )
+      SELECT
+        u.*,
+        r.room_number,
+        r.room_type,
+        r.price_per_night
+      FROM updated u
+      LEFT JOIN rooms r ON u.room_id = r.id
     `;
     if (!booking) return res.status(404).json({ success: false, error: 'Booking not found.' });
 
@@ -383,5 +395,5 @@ app.patch('/api/bookings/:id/status', async (req, res) => {
 // Fall back to 5000 for local development
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🔌 Mariam Hotel API running → http://localhost:${PORT}`);
+  console.log(`🔌 Capalot Hotel API running → http://localhost:${PORT}`);
 });

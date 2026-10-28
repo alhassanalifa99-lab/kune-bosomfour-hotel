@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
           body: JSON.stringify({
             name, email, message,
             subject: document.getElementById('subject')?.value || 'General enquiry',
-            _subject: `Mariam Hotel Enquiry from ${name}`
+            _subject: `Capalot Hotel Enquiry from ${name}`
           })
         });
         if (res.ok) {

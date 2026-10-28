@@ -2,8 +2,30 @@ import type { Room, RoomStatus } from '../../types/database';
 import { isSupabaseConfigured, supabase } from '../supabase';
 import { DEMO_ROOMS } from '../demoData';
 
+const API_BASE = (import.meta.env.VITE_API_BASE || 'https://hotel-proect.onrender.com').replace(/\/$/, '');
+
+async function fetchRoomsFromApi(): Promise<Room[] | null> {
+  try {
+    const response = await fetch(`${API_BASE}/api/rooms`);
+    if (!response.ok) {
+      throw new Error(`Request failed with ${response.status}`);
+    }
+
+    const payload = (await response.json()) as { rooms?: Array<Record<string, unknown>> };
+    const rows = Array.isArray(payload.rooms) ? payload.rooms : [];
+    return rows.map(normalizeRoom);
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch all rooms ordered by room number. */
 export async function fetchRooms(): Promise<Room[]> {
+  const apiRooms = await fetchRoomsFromApi();
+  if (apiRooms) {
+    return apiRooms;
+  }
+
   if (!isSupabaseConfigured) {
     return structuredClone(DEMO_ROOMS);
   }
@@ -25,6 +47,25 @@ export async function updateRoomStatus(
   roomId: string,
   status: RoomStatus
 ): Promise<Room> {
+  const mappedStatus = status.charAt(0).toUpperCase() + status.slice(1);
+
+  try {
+    const response = await fetch(`${API_BASE}/api/rooms/${roomId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: mappedStatus }),
+    });
+
+    if (response.ok) {
+      const payload = (await response.json()) as { room?: Record<string, unknown> };
+      if (payload.room) {
+        return normalizeRoom(payload.room);
+      }
+    }
+  } catch {
+    // Fall back below if the API is unavailable.
+  }
+
   if (!isSupabaseConfigured) {
     const room = DEMO_ROOMS.find((r) => r.id === roomId);
     if (!room) throw new Error('Room not found');
@@ -95,13 +136,21 @@ export function subscribeToRooms(onChange: () => void): () => void {
 }
 
 function normalizeRoom(row: Record<string, unknown>): Room {
+  const rawStatus = String(row.status ?? '').trim().toLowerCase();
+  const status: Room['status'] =
+    rawStatus === 'occupied'
+      ? 'occupied'
+      : rawStatus === 'maintenance' || rawStatus === 'under_maintenance'
+        ? 'maintenance'
+        : 'available';
+
   return {
     id: String(row.id),
     room_number: String(row.room_number),
     room_type: String(row.room_type),
-    base_price: Number(row.base_price),
-    status: row.status as Room['status'],
-    created_at: String(row.created_at),
-    updated_at: String(row.updated_at),
+    base_price: Number(row.base_price ?? row.price_per_night ?? 0),
+    status,
+    created_at: String(row.created_at ?? ''),
+    updated_at: String(row.updated_at ?? ''),
   };
 }
