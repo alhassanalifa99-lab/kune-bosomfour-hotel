@@ -1,16 +1,41 @@
-import { normalizeBookingStatus, type DashboardStats } from '../../types/database';
-import { isSupabaseConfigured, supabase } from '../supabase';
-import { DEMO_BOOKINGS } from '../demoData';
+import { type DashboardStats } from '../../types/database';
 
-/** Compute dashboard analytics from live or demo booking data. */
+// ─── Render API base URL; override with VITE_API_BASE for local/dev testing ─
+const API_BASE = (import.meta.env.VITE_API_BASE || 'https://hotel-proect.onrender.com').replace(/\/$/, '');
+
+// ─── Types matching your Neon bookings table ──────────────────────────────────
+interface NeonBooking {
+  id: number;
+  guest_name: string;
+  guest_email: string;
+  guest_phone: string;
+  room_id: number | null;
+  room_name: string | null;
+  check_in_date: string;
+  check_out_date: string;
+  total_amount: number;
+  booking_status: string;
+  guest_count: number;
+  special_requests: string;
+  created_at: string;
+}
+
+// ─── Normalise booking_status to lowercase with underscores ──────────────────
+function normalizeStatus(status: string): string {
+  return (status || '')
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// fetchDashboardStats — pulls live numbers from Render/Neon
+// ══════════════════════════════════════════════════════════════════════════════
 export async function fetchDashboardStats(): Promise<DashboardStats> {
-  const today = new Date().toISOString().split('T')[0];
-  const monthStart = `${today.slice(0, 7)}-01`;
-
   try {
-    const response = await fetch('/api/stats');
+    const response = await fetch(`${API_BASE}/api/stats`);
+
     if (response.ok) {
-      const payload = (await response.json()) as {
+      const payload = await response.json() as {
         totalActiveBookings?: number;
         checkingInToday?: number;
         checkingOutToday?: number;
@@ -18,71 +43,112 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
       };
 
       return {
-        totalBookings: Number(payload.totalActiveBookings ?? 0),
-        checkInsToday: Number(payload.checkingInToday ?? 0),
-        checkOutsToday: Number(payload.checkingOutToday ?? 0),
-        monthRevenue: Number(payload.currentMonthRevenue ?? 0),
+        totalBookings:  Number(payload.totalActiveBookings  ?? 0),
+        checkInsToday:  Number(payload.checkingInToday      ?? 0),
+        checkOutsToday: Number(payload.checkingOutToday     ?? 0),
+        monthRevenue:   Number(payload.currentMonthRevenue  ?? 0),
       };
     }
   } catch {
-    // Fall back below if the local API is unavailable.
+    // Stats endpoint unreachable — fall through to manual compute
   }
 
-  if (!isSupabaseConfigured) {
-    return computeStats(DEMO_BOOKINGS, today, monthStart);
-  }
-
-  const { data, error } = await supabase
-    .from('bookings')
-    .select('check_in_date, check_out_date, amount_paid, status');
-
-  if (error) {
-    throw new Error(`Failed to fetch dashboard stats: ${error.message}`);
-  }
-
-  return computeStats(data ?? [], today, monthStart);
+  // ── Fallback: compute stats from the bookings list ────────────────────────
+  const bookings = await fetchAllBookings();
+  return computeStats(bookings);
 }
 
-function computeStats(
-  rows: Array<{
-    check_in_date: string;
-    check_out_date: string;
-    amount_paid: number;
-    status: string;
-  }>,
-  today: string,
-  monthStart: string
-): DashboardStats {
-  const activeStatuses = new Set([
-    'pending_confirmation',
-    'confirmed',
-    'checked_in',
-  ]);
+// ══════════════════════════════════════════════════════════════════════════════
+// fetchAllBookings — pulls all reservations from Render/Neon
+// ══════════════════════════════════════════════════════════════════════════════
+export async function fetchAllBookings(): Promise<NeonBooking[]> {
+  const response = await fetch(`${API_BASE}/api/bookings`);
 
-  const activeBookings = rows.filter((row) =>
-    activeStatuses.has(normalizeBookingStatus(row.status))
-  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch bookings: ${response.statusText}`);
+  }
+
+  const payload = await response.json() as { success: boolean; bookings: NeonBooking[] };
+  return payload.bookings ?? [];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// updateBookingStatus — check in / check out a guest
+// ══════════════════════════════════════════════════════════════════════════════
+export async function updateBookingStatus(
+  bookingId: number,
+  status: 'Confirmed' | 'Checked In' | 'Checked Out' | 'Cancelled'
+): Promise<NeonBooking> {
+  const response = await fetch(`${API_BASE}/api/bookings/${bookingId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error || 'Failed to update booking status');
+  }
+
+  const payload = await response.json() as { booking: NeonBooking };
+  return payload.booking;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// updateRoomStatus — toggle room available / occupied / maintenance
+// ══════════════════════════════════════════════════════════════════════════════
+export async function updateRoomStatus(
+  roomId: number,
+  status: 'Available' | 'Occupied' | 'Under Maintenance'
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/rooms/${roomId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error || 'Failed to update room status');
+  }
+}
+
+// ─── Internal: compute stats from bookings array ─────────────────────────────
+function computeStats(bookings: NeonBooking[]): DashboardStats {
+  const today      = new Date().toISOString().split('T')[0];
+  const monthStart = `${today.slice(0, 7)}-01`;
+
+  const activeStatuses = new Set(['pending', 'confirmed', 'checked_in']);
 
   return {
-    totalBookings: activeBookings.length,
-    checkInsToday: rows.filter((row) => {
-      const status = normalizeBookingStatus(row.status);
-      return row.check_in_date === today && (status === 'confirmed' || status === 'checked_in');
+    totalBookings: bookings.filter(b =>
+      activeStatuses.has(normalizeStatus(b.booking_status))
+    ).length,
+
+    checkInsToday: bookings.filter(b => {
+      const s = normalizeStatus(b.booking_status);
+      return b.check_in_date === today && (s === 'confirmed' || s === 'checked_in');
     }).length,
-    checkOutsToday: rows.filter((row) => {
-      const status = normalizeBookingStatus(row.status);
-      return row.check_out_date === today && (status === 'checked_in' || status === 'confirmed');
+
+    checkOutsToday: bookings.filter(b => {
+      const s = normalizeStatus(b.booking_status);
+      return b.check_out_date === today && (s === 'checked_in' || s === 'confirmed');
     }).length,
-    monthRevenue: rows
-      .filter((row) => {
-        const status = normalizeBookingStatus(row.status);
-        return row.check_in_date >= monthStart && status !== 'pending_confirmation';
-      })
-      .reduce((sum, row) => sum + Number(row.amount_paid), 0),
+
+    monthRevenue: bookings
+      .filter(b =>
+        b.check_in_date >= monthStart &&
+        normalizeStatus(b.booking_status) !== 'pending'
+      )
+      .reduce((sum, b) => sum + Number(b.total_amount), 0),
   };
 }
 
-/** Format amounts in Ghana Cedis for display. */
+// ══════════════════════════════════════════════════════════════════════════════
+// Formatting helpers
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** Format amounts in Ghana Cedis. */
 export function formatGHS(amount: number): string {
   return new Intl.NumberFormat('en-GH', {
     style: 'currency',
@@ -92,7 +158,7 @@ export function formatGHS(amount: number): string {
   }).format(amount);
 }
 
-/** Format ISO date strings for table cells. */
+/** Format ISO date string for table cells. */
 export function formatDate(dateStr: string): string {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-GH', {
     weekday: 'short',
@@ -102,12 +168,12 @@ export function formatDate(dateStr: string): string {
   });
 }
 
-/** Today's date as YYYY-MM-DD for date inputs. */
+/** Today's date as YYYY-MM-DD. */
 export function todayISO(): string {
   return new Date().toISOString().split('T')[0];
 }
 
-/** Current month name for dashboard subtitle. */
+/** Current month label e.g. "July 2026". */
 export function currentMonthLabel(): string {
   return new Date().toLocaleDateString('en-GH', {
     month: 'long',

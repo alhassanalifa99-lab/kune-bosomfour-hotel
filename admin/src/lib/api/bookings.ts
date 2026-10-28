@@ -9,6 +9,8 @@ import { isSupabaseConfigured, supabase } from '../supabase';
 import { updateRoomStatus } from './rooms';
 import { DEMO_BOOKINGS, DEMO_ROOMS } from '../demoData';
 
+const API_BASE = (import.meta.env.VITE_API_BASE || 'https://hotel-proect.onrender.com').replace(/\/$/, '');
+
 const BOOKING_SELECT = `
   *,
   rooms (
@@ -51,7 +53,7 @@ function normalizeBookingRow(row: Record<string, unknown>): BookingWithRoom {
 
 async function fetchBookingsFromApi(): Promise<BookingWithRoom[] | null> {
   try {
-    const response = await fetch('/api/bookings');
+    const response = await fetch(`${API_BASE}/api/bookings`);
     if (!response.ok) {
       throw new Error(`Request failed with ${response.status}`);
     }
@@ -106,7 +108,7 @@ export async function createWalkInBooking(
   };
 
   try {
-    const response = await fetch('/api/bookings', {
+    const response = await fetch(`${API_BASE}/api/bookings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -187,7 +189,7 @@ export async function checkInGuest(booking: BookingWithRoom): Promise<BookingWit
   }
 
   try {
-    const response = await fetch(`/api/bookings/${booking.id}/status`, {
+    const response = await fetch(`${API_BASE}/api/bookings/${booking.id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'checked_in' }),
@@ -236,7 +238,7 @@ export async function checkOutGuest(booking: BookingWithRoom): Promise<BookingWi
   }
 
   try {
-    const response = await fetch(`/api/bookings/${booking.id}/status`, {
+    const response = await fetch(`${API_BASE}/api/bookings/${booking.id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'checked_out' }),
