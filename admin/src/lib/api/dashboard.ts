@@ -158,14 +158,31 @@ export function formatGHS(amount: number): string {
   }).format(amount);
 }
 
-/** Format ISO date string for table cells. */
+/** Format a booking date string for table cells without crashing on older/alternate DB values. */
 export function formatDate(dateStr: string): string {
-  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-GH', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  const value = String(dateStr ?? '').trim();
+  if (!value) {
+    return '—';
+  }
+
+  const candidates = [
+    value.includes('T') || value.includes(' ') ? value.replace(' ', 'T') : `${value}T00:00:00`,
+    value,
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = new Date(candidate);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString('en-GH', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    }
+  }
+
+  return '—';
 }
 
 /** Today's date as YYYY-MM-DD. */
