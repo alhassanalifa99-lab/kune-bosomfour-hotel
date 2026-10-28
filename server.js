@@ -77,22 +77,39 @@ const ROOM_NAMES = {
 // ══════════════════════════════════════════════════════════════════════════════
 app.get('/api/stats', async (req, res) => {
   try {
-    const [active, checkIns, checkOuts, revenue] = await Promise.all([
-      sql`SELECT COUNT(*) FROM bookings WHERE booking_status IN ('Confirmed', 'Checked In')`,
-      sql`SELECT COUNT(*) FROM bookings WHERE check_in_date  = CURRENT_DATE`,
-      sql`SELECT COUNT(*) FROM bookings WHERE check_out_date = CURRENT_DATE`,
+    const [totals, pending, confirmed, active, checkIns, checkOuts, revenue] = await Promise.all([
+      sql`SELECT COUNT(*) AS count FROM bookings`,
+      sql`SELECT COUNT(*) AS count FROM bookings WHERE LOWER(COALESCE(booking_status, '')) IN ('pending', 'pending_confirmation', 'pending confirmation')`,
+      sql`SELECT COUNT(*) AS count FROM bookings WHERE LOWER(COALESCE(booking_status, '')) IN ('confirmed')`,
+      sql`SELECT COUNT(*) AS count
+          FROM bookings
+          WHERE LOWER(COALESCE(booking_status, '')) IN (
+            'pending', 'pending_confirmation', 'pending confirmation', 'confirmed',
+            'checked_in', 'checked in', 'checked_out', 'checked out'
+          )`,
+      sql`SELECT COUNT(*) AS count
+          FROM bookings
+          WHERE check_in_date = CURRENT_DATE
+            AND LOWER(COALESCE(booking_status, '')) IN ('pending', 'pending_confirmation', 'pending confirmation', 'confirmed', 'checked_in', 'checked in')`,
+      sql`SELECT COUNT(*) AS count
+          FROM bookings
+          WHERE check_out_date = CURRENT_DATE
+            AND LOWER(COALESCE(booking_status, '')) IN ('confirmed', 'checked_in', 'checked in', 'checked_out', 'checked out')`,
       sql`SELECT COALESCE(SUM(total_amount), 0) AS total
           FROM bookings
-          WHERE booking_status IN ('Confirmed', 'Checked In', 'Checked Out')
+          WHERE LOWER(COALESCE(booking_status, '')) NOT IN ('cancelled', 'canceled')
             AND DATE_TRUNC('month', check_in_date) = DATE_TRUNC('month', CURRENT_DATE)`
     ]);
 
     res.json({
       success: true,
-      totalActiveBookings:  parseInt(active[0].count)     || 0,
-      checkingInToday:      parseInt(checkIns[0].count)   || 0,
-      checkingOutToday:     parseInt(checkOuts[0].count)  || 0,
-      currentMonthRevenue:  parseFloat(revenue[0].total)  || 0
+      totalBookings:         parseInt(totals[0].count)      || 0,
+      pendingBookings:       parseInt(pending[0].count)     || 0,
+      confirmedBookings:     parseInt(confirmed[0].count)   || 0,
+      totalActiveBookings:   parseInt(active[0].count)      || 0,
+      checkingInToday:       parseInt(checkIns[0].count)    || 0,
+      checkingOutToday:      parseInt(checkOuts[0].count)   || 0,
+      currentMonthRevenue:   parseFloat(revenue[0].total)   || 0
     });
   } catch (err) {
     console.error('Stats error:', err.message);

@@ -36,6 +36,9 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
 
     if (response.ok) {
       const payload = await response.json() as {
+        totalBookings?: number;
+        pendingBookings?: number;
+        confirmedBookings?: number;
         totalActiveBookings?: number;
         checkingInToday?: number;
         checkingOutToday?: number;
@@ -43,10 +46,13 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
       };
 
       return {
-        totalBookings:  Number(payload.totalActiveBookings  ?? 0),
-        checkInsToday:  Number(payload.checkingInToday      ?? 0),
-        checkOutsToday: Number(payload.checkingOutToday     ?? 0),
-        monthRevenue:   Number(payload.currentMonthRevenue  ?? 0),
+        totalBookings:        Number(payload.totalBookings ?? payload.totalActiveBookings ?? 0),
+        pendingBookings:      Number(payload.pendingBookings ?? 0),
+        confirmedBookings:    Number(payload.confirmedBookings ?? 0),
+        totalActiveBookings:  Number(payload.totalActiveBookings ?? payload.totalBookings ?? 0),
+        checkInsToday:        Number(payload.checkingInToday ?? 0),
+        checkOutsToday:       Number(payload.checkingOutToday ?? 0),
+        monthRevenue:         Number(payload.currentMonthRevenue ?? 0),
       };
     }
   } catch {
@@ -120,25 +126,31 @@ function computeStats(bookings: NeonBooking[]): DashboardStats {
 
   const activeStatuses = new Set(['pending', 'confirmed', 'checked_in']);
 
+  const totalBookings = bookings.length;
+  const pendingBookings = bookings.filter(b => normalizeStatus(b.booking_status) === 'pending').length;
+  const confirmedBookings = bookings.filter(b => normalizeStatus(b.booking_status) === 'confirmed').length;
+  const totalActiveBookings = bookings.filter(b => activeStatuses.has(normalizeStatus(b.booking_status))).length;
+
   return {
-    totalBookings: bookings.filter(b =>
-      activeStatuses.has(normalizeStatus(b.booking_status))
-    ).length,
+    totalBookings,
+    pendingBookings,
+    confirmedBookings,
+    totalActiveBookings,
 
     checkInsToday: bookings.filter(b => {
       const s = normalizeStatus(b.booking_status);
-      return b.check_in_date === today && (s === 'confirmed' || s === 'checked_in');
+      return b.check_in_date === today && (s === 'pending' || s === 'confirmed' || s === 'checked_in');
     }).length,
 
     checkOutsToday: bookings.filter(b => {
       const s = normalizeStatus(b.booking_status);
-      return b.check_out_date === today && (s === 'checked_in' || s === 'confirmed');
+      return b.check_out_date === today && (s === 'confirmed' || s === 'checked_in' || s === 'checked_out');
     }).length,
 
     monthRevenue: bookings
       .filter(b =>
         b.check_in_date >= monthStart &&
-        normalizeStatus(b.booking_status) !== 'pending'
+        normalizeStatus(b.booking_status) !== 'cancelled'
       )
       .reduce((sum, b) => sum + Number(b.total_amount), 0),
   };

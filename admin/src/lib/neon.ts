@@ -36,15 +36,21 @@ export async function fetchDashboardStatsFromNeon(): Promise<DashboardStats> {
   }>;
 
   const activeStatuses = new Set(['pending_confirmation', 'confirmed', 'checked_in']);
-  const activeBookings = rows.filter((row) => activeStatuses.has(row.status));
+  const totalBookings = rows.length;
+  const pendingBookings = rows.filter((row) => row.status === 'pending_confirmation').length;
+  const confirmedBookings = rows.filter((row) => row.status === 'confirmed').length;
+  const totalActiveBookings = rows.filter((row) => activeStatuses.has(row.status)).length;
 
   return {
-    totalBookings: activeBookings.length,
+    totalBookings,
+    pendingBookings,
+    confirmedBookings,
+    totalActiveBookings,
     checkInsToday: rows.filter(
-      (row) => row.check_in_date === today && ['confirmed', 'checked_in'].includes(row.status)
+      (row) => row.check_in_date === today && ['pending_confirmation', 'confirmed', 'checked_in'].includes(row.status)
     ).length,
     checkOutsToday: rows.filter(
-      (row) => row.check_out_date === today && ['checked_in', 'confirmed'].includes(row.status)
+      (row) => row.check_out_date === today && ['confirmed', 'checked_in'].includes(row.status)
     ).length,
     monthRevenue: rows
       .filter((row) => row.check_in_date >= monthStart && row.status !== 'pending_confirmation')

@@ -1,61 +1,12 @@
-import { useEffect, useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { formatGHS } from '../../lib/api/dashboard';
 import { MetricCard, LoadingState } from '../ui/StatusBadge';
 
-const EMPTY_STATS = {
-  totalActiveBookings: 0,
-  checkingInToday: 0,
-  checkingOutToday: 0,
-  currentMonthRevenue: 0,
-};
-
 /** Dashboard analytics section with metric cards and quick actions. */
 export function DashboardOverview() {
-  const { setWalkInOpen } = useAdmin();
-  const [stats, setStats] = useState(EMPTY_STATS);
-  const [loading, setLoading] = useState(true);
+  const { setWalkInOpen, stats, statsLoading } = useAdmin();
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadStats() {
-      try {
-        const response = await fetch('/api/stats');
-        if (!response.ok) {
-          throw new Error('Unable to load dashboard statistics');
-        }
-
-        const payload = (await response.json()) as typeof EMPTY_STATS;
-
-        if (!isMounted) return;
-
-        setStats({
-          totalActiveBookings: Number(payload.totalActiveBookings ?? 0),
-          checkingInToday: Number(payload.checkingInToday ?? 0),
-          checkingOutToday: Number(payload.checkingOutToday ?? 0),
-          currentMonthRevenue: Number(payload.currentMonthRevenue ?? 0),
-        });
-      } catch (error) {
-        console.error('Failed to load dashboard stats:', error);
-        if (isMounted) {
-          setStats(EMPTY_STATS);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadStats();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  if (loading) {
+  if (statsLoading) {
     return <LoadingState message="Loading analytics…" />;
   }
 
@@ -63,8 +14,8 @@ export function DashboardOverview() {
     <>
       <section className="metrics-grid" aria-label="Key metrics">
         <MetricCard
-          label="Total Active Bookings"
-          value={stats.totalActiveBookings}
+          label="Total Bookings"
+          value={stats.totalBookings}
           tone="gold"
           icon={
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -74,8 +25,40 @@ export function DashboardOverview() {
           }
         />
         <MetricCard
+          label="Active Bookings"
+          value={stats.totalActiveBookings}
+          tone="gold"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.6" />
+              <path d="M12 7V12L15 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          }
+        />
+        <MetricCard
+          label="Pending Bookings"
+          value={stats.pendingBookings}
+          tone="warning"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 7V12L16 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.6" />
+            </svg>
+          }
+        />
+        <MetricCard
+          label="Confirmed Bookings"
+          value={stats.confirmedBookings}
+          tone="success"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 12L9 16L19 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          }
+        />
+        <MetricCard
           label="Checking In Today"
-          value={stats.checkingInToday}
+          value={stats.checkInsToday}
           tone="success"
           icon={
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -86,7 +69,7 @@ export function DashboardOverview() {
         />
         <MetricCard
           label="Checking Out Today"
-          value={stats.checkingOutToday}
+          value={stats.checkOutsToday}
           tone="info"
           icon={
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -97,7 +80,7 @@ export function DashboardOverview() {
         />
         <MetricCard
           label="Current Month Revenue"
-          value={formatGHS(stats.currentMonthRevenue)}
+          value={formatGHS(stats.monthRevenue)}
           tone="warning"
           icon={
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">

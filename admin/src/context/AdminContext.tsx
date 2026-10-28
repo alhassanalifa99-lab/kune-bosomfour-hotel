@@ -65,6 +65,9 @@ const AdminContext = createContext<AdminContextValue | null>(null);
 
 const EMPTY_STATS: DashboardStats = {
   totalBookings: 0,
+  pendingBookings: 0,
+  confirmedBookings: 0,
+  totalActiveBookings: 0,
   checkInsToday: 0,
   checkOutsToday: 0,
   monthRevenue: 0,

@@ -52,6 +52,9 @@ export interface Booking {
 /** Aggregated metrics shown on the dashboard overview. */
 export interface DashboardStats {
   totalBookings: number;
+  pendingBookings: number;
+  confirmedBookings: number;
+  totalActiveBookings: number;
   checkInsToday: number;
   checkOutsToday: number;
   monthRevenue: number;
