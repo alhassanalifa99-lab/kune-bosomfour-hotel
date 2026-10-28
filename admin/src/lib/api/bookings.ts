@@ -103,7 +103,7 @@ export async function createWalkInBooking(
     total_amount: input.amount_paid,
     guest_count: input.guest_count ?? 1,
     special_requests: input.special_requests ?? null,
-    booking_status: 'confirmed' as BookingStatus,
+    booking_status: 'Confirmed' as BookingStatus,
     is_walk_in: true,
   };
 
@@ -192,7 +192,7 @@ export async function checkInGuest(booking: BookingWithRoom): Promise<BookingWit
     const response = await fetch(`${API_BASE}/api/bookings/${booking.id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'checked_in' }),
+      body: JSON.stringify({ status: 'Checked In' }),
     });
 
     if (response.ok) {
@@ -241,7 +241,7 @@ export async function checkOutGuest(booking: BookingWithRoom): Promise<BookingWi
     const response = await fetch(`${API_BASE}/api/bookings/${booking.id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'checked_out' }),
+      body: JSON.stringify({ status: 'Checked Out' }),
     });
 
     if (response.ok) {

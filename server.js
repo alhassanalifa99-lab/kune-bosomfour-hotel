@@ -323,26 +323,50 @@ app.patch('/api/rooms/:id/status', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // PATCH /api/bookings/:id/status  — Update booking status (check in / out)
 // ══════════════════════════════════════════════════════════════════════════════
+function normalizeBookingStatusValue(status) {
+  const value = String(status ?? '').trim();
+  if (!value) return null;
+
+  const normalized = value
+    .toLowerCase()
+    .replace(/[_\s-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  const map = {
+    pending: 'Pending',
+    pending_confirmation: 'Pending',
+    confirmed: 'Confirmed',
+    checked_in: 'Checked In',
+    check_in: 'Checked In',
+    checked_out: 'Checked Out',
+    check_out: 'Checked Out',
+    cancelled: 'Cancelled',
+  };
+
+  return map[normalized] || null;
+}
+
 app.patch('/api/bookings/:id/status', async (req, res) => {
   try {
     const { id }     = req.params;
     const { status } = req.body;
+    const normalizedStatus = normalizeBookingStatusValue(status);
 
     const allowed = ['Pending', 'Confirmed', 'Checked In', 'Checked Out', 'Cancelled'];
-    if (!allowed.includes(status)) {
+    if (!normalizedStatus || !allowed.includes(normalizedStatus)) {
       return res.status(400).json({ success: false, error: `Status must be one of: ${allowed.join(', ')}` });
     }
 
     const [booking] = await sql`
-      UPDATE bookings SET booking_status = ${status} WHERE id = ${id} RETURNING *
+      UPDATE bookings SET booking_status = ${normalizedStatus} WHERE id = ${id} RETURNING *
     `;
     if (!booking) return res.status(404).json({ success: false, error: 'Booking not found.' });
 
     // Auto-update linked room status when guest checks in / out
     if (booking.room_id) {
-      if (status === 'Checked In') {
+      if (normalizedStatus === 'Checked In') {
         await sql`UPDATE rooms SET status = 'Occupied'  WHERE id = ${booking.room_id}`;
-      } else if (status === 'Checked Out') {
+      } else if (normalizedStatus === 'Checked Out') {
         await sql`UPDATE rooms SET status = 'Available' WHERE id = ${booking.room_id}`;
       }
     }
