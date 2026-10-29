@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Capalot Hotel Admin">
+  <rect width="64" height="64" rx="16" fill="#111111"/>
+  <path d="M16 42V22h8l8 8 8-8h8v20h-8V30l-8 8-8-8v12h-8Z" fill="#c7a74c"/>
+  <circle cx="50" cy="18" r="6" fill="#f5f1e2"/>
+</svg>

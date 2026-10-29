@@ -1,6 +1,12 @@
 import type { Room, RoomStatus } from '../../types/database';
 import { isSupabaseConfigured, supabase } from '../supabase';
 import { DEMO_ROOMS } from '../demoData';
+import {
+  getCachedRooms,
+  isOfflineMode,
+  queueOfflineAction,
+  saveCachedRooms,
+} from '../offline';
 
 const API_BASE = (import.meta.env.VITE_API_BASE || 'https://hotel-proect.onrender.com').replace(/\/$/, '');
 
@@ -21,12 +27,28 @@ async function fetchRoomsFromApi(): Promise<Room[] | null> {
 
 /** Fetch all rooms ordered by room number. */
 export async function fetchRooms(): Promise<Room[]> {
+  if (isOfflineMode()) {
+    const cachedRooms = getCachedRooms();
+    if (cachedRooms.length > 0) {
+      return cachedRooms;
+    }
+
+    return structuredClone(DEMO_ROOMS);
+  }
+
   const apiRooms = await fetchRoomsFromApi();
   if (apiRooms) {
+    saveCachedRooms(apiRooms);
     return apiRooms;
   }
 
+  const cachedRooms = getCachedRooms();
+  if (cachedRooms.length > 0) {
+    return cachedRooms;
+  }
+
   if (!isSupabaseConfigured) {
+    saveCachedRooms(DEMO_ROOMS);
     return structuredClone(DEMO_ROOMS);
   }
 
@@ -39,7 +61,9 @@ export async function fetchRooms(): Promise<Room[]> {
     throw new Error(`Failed to fetch rooms: ${error.message}`);
   }
 
-  return (data ?? []).map(normalizeRoom);
+  const normalizedRooms = (data ?? []).map(normalizeRoom);
+  saveCachedRooms(normalizedRooms);
+  return normalizedRooms;
 }
 
 /** Update a room's availability status. */
@@ -48,6 +72,21 @@ export async function updateRoomStatus(
   status: RoomStatus
 ): Promise<Room> {
   const mappedStatus = status.charAt(0).toUpperCase() + status.slice(1);
+
+  if (isOfflineMode()) {
+    const cachedRooms = getCachedRooms();
+    const room = cachedRooms.find((r) => r.id === roomId) ?? DEMO_ROOMS.find((r) => r.id === roomId);
+    if (!room) throw new Error('Room not found');
+
+    const updatedRoom = { ...room, status, updated_at: new Date().toISOString() };
+    const nextRooms = cachedRooms.some((r) => r.id === roomId)
+      ? cachedRooms.map((r) => (r.id === roomId ? updatedRoom : r))
+      : [...cachedRooms, updatedRoom];
+
+    saveCachedRooms(nextRooms);
+    queueOfflineAction({ type: 'room-status', payload: { roomId, status } });
+    return structuredClone(updatedRoom);
+  }
 
   try {
     const response = await fetch(`${API_BASE}/api/rooms/${roomId}/status`, {
@@ -59,19 +98,32 @@ export async function updateRoomStatus(
     if (response.ok) {
       const payload = (await response.json()) as { room?: Record<string, unknown> };
       if (payload.room) {
-        return normalizeRoom(payload.room);
+        const normalizedRoom = normalizeRoom(payload.room);
+        saveCachedRooms([
+          ...getCachedRooms().filter((room) => room.id !== roomId),
+          normalizedRoom,
+        ]);
+        return normalizedRoom;
       }
     }
   } catch {
     // Fall back below if the API is unavailable.
   }
 
+  const cachedRooms = getCachedRooms();
+  const room = cachedRooms.find((r) => r.id === roomId) ?? DEMO_ROOMS.find((r) => r.id === roomId);
+  if (!room) throw new Error('Room not found');
+
+  const updatedRoom = { ...room, status, updated_at: new Date().toISOString() };
+  const nextRooms = cachedRooms.some((r) => r.id === roomId)
+    ? cachedRooms.map((r) => (r.id === roomId ? updatedRoom : r))
+    : [...cachedRooms, updatedRoom];
+
+  saveCachedRooms(nextRooms);
+  queueOfflineAction({ type: 'room-status', payload: { roomId, status } });
+
   if (!isSupabaseConfigured) {
-    const room = DEMO_ROOMS.find((r) => r.id === roomId);
-    if (!room) throw new Error('Room not found');
-    room.status = status;
-    room.updated_at = new Date().toISOString();
-    return structuredClone(room);
+    return structuredClone(updatedRoom);
   }
 
   const { data, error } = await supabase
@@ -93,11 +145,27 @@ export async function updateRoomPrice(
   roomId: string,
   basePrice: number
 ): Promise<Room> {
+  if (isOfflineMode()) {
+    const cachedRooms = getCachedRooms();
+    const room = cachedRooms.find((r) => r.id === roomId) ?? DEMO_ROOMS.find((r) => r.id === roomId);
+    if (!room) throw new Error('Room not found');
+
+    const updatedRoom = { ...room, base_price: basePrice, updated_at: new Date().toISOString() };
+    const nextRooms = cachedRooms.some((r) => r.id === roomId)
+      ? cachedRooms.map((r) => (r.id === roomId ? updatedRoom : r))
+      : [...cachedRooms, updatedRoom];
+
+    saveCachedRooms(nextRooms);
+    queueOfflineAction({ type: 'room-price', payload: { roomId, basePrice } });
+    return structuredClone(updatedRoom);
+  }
+
   if (!isSupabaseConfigured) {
     const room = DEMO_ROOMS.find((r) => r.id === roomId);
     if (!room) throw new Error('Room not found');
     room.base_price = basePrice;
     room.updated_at = new Date().toISOString();
+    saveCachedRooms([...getCachedRooms().filter((r) => r.id !== roomId), { ...room }]);
     return structuredClone(room);
   }
 
@@ -112,7 +180,9 @@ export async function updateRoomPrice(
     throw new Error(`Failed to update room price: ${error.message}`);
   }
 
-  return normalizeRoom(data);
+  const normalizedRoom = normalizeRoom(data);
+  saveCachedRooms([...getCachedRooms().filter((room) => room.id !== roomId), normalizedRoom]);
+  return normalizedRoom;
 }
 
 /** Subscribe to realtime room changes; returns unsubscribe cleanup. */

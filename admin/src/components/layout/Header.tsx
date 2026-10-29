@@ -22,8 +22,11 @@ const SECTION_META: Record<
 
 /** Top header bar with section title and refresh control. */
 export function Header() {
-  const { section, refreshAll, setWalkInOpen } = useAdmin();
+  const { section, refreshAll, setWalkInOpen, isOffline, pendingSyncCount, syncStatus } = useAdmin();
   const meta = SECTION_META[section];
+  const syncLabel = isOffline
+    ? `${pendingSyncCount} queued`
+    : syncStatus ?? 'Synced';
 
   return (
     <header className="admin-header">
@@ -33,6 +36,19 @@ export function Header() {
       </div>
 
       <div className="header-actions">
+        <div
+          className={`offline-indicator ${isOffline ? 'offline' : 'online'} ${pendingSyncCount > 0 && !isOffline ? 'syncing' : ''}`}
+          aria-live="polite"
+          title={
+            isOffline
+              ? `Offline mode: ${pendingSyncCount} change${pendingSyncCount === 1 ? '' : 's'} saved locally`
+              : syncStatus ?? 'All changes are synced'
+          }
+        >
+          <span className="offline-indicator-dot" />
+          {isOffline ? 'Offline' : syncLabel}
+        </div>
+
         {section === 'dashboard' && (
           <button
             type="button"

@@ -3,11 +3,20 @@ import {
   type BookingFilters,
   type BookingStatus,
   type BookingWithRoom,
+  type Room,
   type WalkInBookingInput,
 } from '../../types/database';
 import { isSupabaseConfigured, supabase } from '../supabase';
 import { updateRoomStatus } from './rooms';
 import { DEMO_BOOKINGS, DEMO_ROOMS } from '../demoData';
+import {
+  getCachedBookings,
+  getCachedRooms,
+  isOfflineMode,
+  queueOfflineAction,
+  saveCachedBookings,
+  saveCachedRooms,
+} from '../offline';
 
 const API_BASE = (import.meta.env.VITE_API_BASE || 'https://hotel-proect.onrender.com').replace(/\/$/, '');
 
@@ -68,12 +77,28 @@ async function fetchBookingsFromApi(): Promise<BookingWithRoom[] | null> {
 
 /** Fetch all bookings with joined room data, newest first. */
 export async function fetchBookings(): Promise<BookingWithRoom[]> {
+  if (isOfflineMode()) {
+    const cachedBookings = getCachedBookings();
+    if (cachedBookings.length > 0) {
+      return cachedBookings;
+    }
+
+    return structuredClone(DEMO_BOOKINGS);
+  }
+
   const apiBookings = await fetchBookingsFromApi();
   if (apiBookings !== null) {
+    saveCachedBookings(apiBookings);
     return apiBookings;
   }
 
+  const cachedBookings = getCachedBookings();
+  if (cachedBookings.length > 0) {
+    return cachedBookings;
+  }
+
   if (!isSupabaseConfigured) {
+    saveCachedBookings(DEMO_BOOKINGS);
     return structuredClone(DEMO_BOOKINGS);
   }
 
@@ -86,7 +111,9 @@ export async function fetchBookings(): Promise<BookingWithRoom[]> {
     throw new Error(`Failed to fetch bookings: ${error.message}`);
   }
 
-  return (data ?? []).map(normalizeBookingRow);
+  const normalizedBookings = (data ?? []).map(normalizeBookingRow);
+  saveCachedBookings(normalizedBookings);
+  return normalizedBookings;
 }
 
 /** Create a walk-in booking and mark the room as occupied if checking in today. */
@@ -107,6 +134,45 @@ export async function createWalkInBooking(
     is_walk_in: true,
   };
 
+  if (isOfflineMode()) {
+    const room = getCachedRooms().find((r) => r.id === input.room_id) ?? DEMO_ROOMS.find((r) => r.id === input.room_id);
+    const booking: BookingWithRoom = {
+      id: crypto.randomUUID(),
+      room_id: input.room_id,
+      guest_name: input.guest_name,
+      guest_email: input.guest_email ?? null,
+      guest_phone: input.guest_phone ?? null,
+      check_in_date: input.check_in_date,
+      check_out_date: input.check_out_date,
+      amount_paid: input.amount_paid,
+      guest_count: input.guest_count ?? 1,
+      special_requests: input.special_requests ?? null,
+      status: 'confirmed',
+      is_walk_in: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      rooms: room
+        ? { id: room.id, room_number: room.room_number, room_type: room.room_type }
+        : null,
+    };
+
+    const previousBookings = getCachedBookings();
+    const nextBookings = [booking, ...previousBookings];
+    saveCachedBookings(nextBookings);
+    queueOfflineAction({ type: 'walk-in', payload: booking });
+
+    if (room && input.check_in_date <= new Date().toISOString().split('T')[0]) {
+      const nextRoom: Room = { ...room, status: 'occupied', updated_at: new Date().toISOString() };
+      const nextRooms: Room[] = getCachedRooms().some((r) => r.id === room.id)
+        ? getCachedRooms().map((r) => (r.id === room.id ? nextRoom : r))
+        : [...getCachedRooms(), nextRoom];
+      saveCachedRooms(nextRooms);
+      queueOfflineAction({ type: 'room-status', payload: { roomId: room.id, status: 'occupied' } });
+    }
+
+    return structuredClone(booking);
+  }
+
   try {
     const response = await fetch(`${API_BASE}/api/bookings`, {
       method: 'POST',
@@ -117,7 +183,9 @@ export async function createWalkInBooking(
     if (response.ok) {
       const result = (await response.json()) as { booking?: Record<string, unknown> };
       if (result.booking) {
-        return normalizeBookingRow(result.booking);
+        const normalizedBooking = normalizeBookingRow(result.booking);
+        saveCachedBookings([normalizedBooking, ...getCachedBookings()]);
+        return normalizedBooking;
       }
     }
   } catch {
@@ -146,8 +214,13 @@ export async function createWalkInBooking(
         : null,
     };
     DEMO_BOOKINGS.unshift(booking);
+    saveCachedBookings([booking, ...getCachedBookings()]);
     if (room && input.check_in_date <= new Date().toISOString().split('T')[0]) {
       room.status = 'occupied';
+      saveCachedRooms([
+        ...getCachedRooms().filter((r) => r.id !== room.id),
+        { ...room, status: 'occupied', updated_at: new Date().toISOString() },
+      ]);
     }
     return structuredClone(booking);
   }
@@ -179,13 +252,44 @@ export async function createWalkInBooking(
     await updateRoomStatus(input.room_id, 'occupied');
   }
 
-  return normalizeBookingRow(data as Record<string, unknown>);
+  const normalizedBooking = normalizeBookingRow(data as Record<string, unknown>);
+  saveCachedBookings([normalizedBooking, ...getCachedBookings()]);
+  return normalizedBooking;
 }
 
 /** Check a guest in: update booking status and set room to occupied. */
 export async function checkInGuest(booking: BookingWithRoom): Promise<BookingWithRoom> {
   if (!booking.room_id) {
     throw new Error('Booking has no assigned room');
+  }
+
+  if (isOfflineMode()) {
+    const match = getCachedBookings().find((item) => item.id === booking.id) ?? booking;
+    const updatedBooking: BookingWithRoom = {
+      ...match,
+      status: 'checked_in',
+      updated_at: new Date().toISOString(),
+      rooms: match.rooms ?? booking.rooms,
+    };
+
+    const nextBookings = getCachedBookings().some((item) => item.id === booking.id)
+      ? getCachedBookings().map((item) => (item.id === booking.id ? updatedBooking : item))
+      : [updatedBooking, ...getCachedBookings()];
+
+    saveCachedBookings(nextBookings);
+    queueOfflineAction({ type: 'booking-status', payload: { bookingId: booking.id, roomId: booking.room_id, status: 'checked_in' } });
+
+    const room = getCachedRooms().find((item) => item.id === booking.room_id) ?? DEMO_ROOMS.find((item) => item.id === booking.room_id);
+    if (room) {
+      const nextRoom: Room = { ...room, status: 'occupied', updated_at: new Date().toISOString() };
+      const nextRooms: Room[] = getCachedRooms().some((item) => item.id === room.id)
+        ? getCachedRooms().map((item) => (item.id === room.id ? nextRoom : item))
+        : [...getCachedRooms(), nextRoom];
+      saveCachedRooms(nextRooms);
+      queueOfflineAction({ type: 'room-status', payload: { roomId: room.id, status: 'occupied' } });
+    }
+
+    return structuredClone(updatedBooking);
   }
 
   try {
@@ -202,6 +306,10 @@ export async function checkInGuest(booking: BookingWithRoom): Promise<BookingWit
         if (!normalized.rooms && booking.rooms) {
           normalized.rooms = booking.rooms;
         }
+        saveCachedBookings([
+          normalized,
+          ...getCachedBookings().filter((item) => item.id !== booking.id),
+        ]);
         return normalized;
       }
     }
@@ -217,6 +325,7 @@ export async function checkInGuest(booking: BookingWithRoom): Promise<BookingWit
     }
     const room = DEMO_ROOMS.find((r) => r.id === booking.room_id);
     if (room) room.status = 'occupied';
+    saveCachedBookings([...(getCachedBookings().filter((item) => item.id !== booking.id)), structuredClone(match ?? booking)]);
     return structuredClone(match ?? booking);
   }
 
@@ -232,13 +341,44 @@ export async function checkInGuest(booking: BookingWithRoom): Promise<BookingWit
   }
 
   await updateRoomStatus(booking.room_id, 'occupied');
-  return normalizeBookingRow(data as Record<string, unknown>);
+  const normalizedBooking = normalizeBookingRow(data as Record<string, unknown>);
+  saveCachedBookings([normalizedBooking, ...getCachedBookings().filter((item) => item.id !== booking.id)]);
+  return normalizedBooking;
 }
 
 /** Check a guest out: update booking status and set room to available. */
 export async function checkOutGuest(booking: BookingWithRoom): Promise<BookingWithRoom> {
   if (!booking.room_id) {
     throw new Error('Booking has no assigned room');
+  }
+
+  if (isOfflineMode()) {
+    const match = getCachedBookings().find((item) => item.id === booking.id) ?? booking;
+    const updatedBooking: BookingWithRoom = {
+      ...match,
+      status: 'checked_out',
+      updated_at: new Date().toISOString(),
+      rooms: match.rooms ?? booking.rooms,
+    };
+
+    const nextBookings = getCachedBookings().some((item) => item.id === booking.id)
+      ? getCachedBookings().map((item) => (item.id === booking.id ? updatedBooking : item))
+      : [updatedBooking, ...getCachedBookings()];
+
+    saveCachedBookings(nextBookings);
+    queueOfflineAction({ type: 'booking-status', payload: { bookingId: booking.id, roomId: booking.room_id, status: 'checked_out' } });
+
+    const room = getCachedRooms().find((item) => item.id === booking.room_id) ?? DEMO_ROOMS.find((item) => item.id === booking.room_id);
+    if (room) {
+      const nextRoom: Room = { ...room, status: 'available', updated_at: new Date().toISOString() };
+      const nextRooms: Room[] = getCachedRooms().some((item) => item.id === room.id)
+        ? getCachedRooms().map((item) => (item.id === room.id ? nextRoom : item))
+        : [...getCachedRooms(), nextRoom];
+      saveCachedRooms(nextRooms);
+      queueOfflineAction({ type: 'room-status', payload: { roomId: room.id, status: 'available' } });
+    }
+
+    return structuredClone(updatedBooking);
   }
 
   try {
@@ -255,6 +395,10 @@ export async function checkOutGuest(booking: BookingWithRoom): Promise<BookingWi
         if (!normalized.rooms && booking.rooms) {
           normalized.rooms = booking.rooms;
         }
+        saveCachedBookings([
+          normalized,
+          ...getCachedBookings().filter((item) => item.id !== booking.id),
+        ]);
         return normalized;
       }
     }
@@ -270,6 +414,7 @@ export async function checkOutGuest(booking: BookingWithRoom): Promise<BookingWi
     }
     const room = DEMO_ROOMS.find((r) => r.id === booking.room_id);
     if (room) room.status = 'available';
+    saveCachedBookings([...(getCachedBookings().filter((item) => item.id !== booking.id)), structuredClone(match ?? booking)]);
     return structuredClone(match ?? booking);
   }
 
@@ -285,7 +430,9 @@ export async function checkOutGuest(booking: BookingWithRoom): Promise<BookingWi
   }
 
   await updateRoomStatus(booking.room_id, 'available');
-  return normalizeBookingRow(data as Record<string, unknown>);
+  const normalizedBooking = normalizeBookingRow(data as Record<string, unknown>);
+  saveCachedBookings([normalizedBooking, ...getCachedBookings().filter((item) => item.id !== booking.id)]);
+  return normalizedBooking;
 }
 
 /** Subscribe to realtime booking changes; returns unsubscribe cleanup. */

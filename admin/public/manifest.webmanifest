@@ -1,0 +1,17 @@
+{
+  "name": "Capalot Hotel Admin",
+  "short_name": "Hotel Admin",
+  "description": "Offline-capable hotel administration dashboard",
+  "start_url": "/admin/",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#c7a74c",
+  "icons": [
+    {
+      "src": "/admin/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
