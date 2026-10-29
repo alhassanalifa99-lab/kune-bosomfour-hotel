@@ -1,7 +1,7 @@
 import { type DashboardStats } from '../../types/database';
 
-// ─── Render API base URL; override with VITE_API_BASE for local/dev testing ─
-const API_BASE = (import.meta.env.VITE_API_BASE || 'https://hotel-proect.onrender.com').replace(/\/$/, '');
+// ─── Render API base URL ──────────────────────────────────────────────────────
+const API_BASE = 'https://hotel-proect.onrender.com';
 
 // ─── Types matching your Neon bookings table ──────────────────────────────────
 interface NeonBooking {
@@ -32,36 +32,39 @@ function normalizeStatus(status: string): string {
 // ══════════════════════════════════════════════════════════════════════════════
 export async function fetchDashboardStats(): Promise<DashboardStats> {
   try {
-    const response = await fetch(`${API_BASE}/api/stats`);
-
-    if (response.ok) {
-      const payload = await response.json() as {
-        totalBookings?: number;
-        pendingBookings?: number;
-        confirmedBookings?: number;
-        totalActiveBookings?: number;
-        checkingInToday?: number;
-        checkingOutToday?: number;
-        currentMonthRevenue?: number;
-      };
-
-      return {
-        totalBookings:        Number(payload.totalBookings ?? payload.totalActiveBookings ?? 0),
-        pendingBookings:      Number(payload.pendingBookings ?? 0),
-        confirmedBookings:    Number(payload.confirmedBookings ?? 0),
-        totalActiveBookings:  Number(payload.totalActiveBookings ?? payload.totalBookings ?? 0),
-        checkInsToday:        Number(payload.checkingInToday ?? 0),
-        checkOutsToday:       Number(payload.checkingOutToday ?? 0),
-        monthRevenue:         Number(payload.currentMonthRevenue ?? 0),
-      };
-    }
+    const bookings = await fetchAllBookings();
+    return computeStats(bookings);
   } catch {
-    // Stats endpoint unreachable — fall through to manual compute
-  }
+    try {
+      const response = await fetch(`${API_BASE}/api/stats`);
 
-  // ── Fallback: compute stats from the bookings list ────────────────────────
-  const bookings = await fetchAllBookings();
-  return computeStats(bookings);
+      if (response.ok) {
+        const payload = await response.json() as {
+          totalBookings?: number;
+          pendingBookings?: number;
+          confirmedBookings?: number;
+          totalActiveBookings?: number;
+          checkingInToday?: number;
+          checkingOutToday?: number;
+          currentMonthRevenue?: number;
+        };
+
+        return {
+          totalBookings:       Number(payload.totalBookings ?? payload.totalActiveBookings ?? 0),
+          pendingBookings:     Number(payload.pendingBookings ?? 0),
+          confirmedBookings:   Number(payload.confirmedBookings ?? 0),
+          totalActiveBookings: Number(payload.totalActiveBookings ?? payload.totalBookings ?? 0),
+          checkInsToday:       Number(payload.checkingInToday ?? 0),
+          checkOutsToday:      Number(payload.checkingOutToday ?? 0),
+          monthRevenue:        Number(payload.currentMonthRevenue ?? 0),
+        };
+      }
+    } catch {
+      // Fall through to a hard error below.
+    }
+
+    throw new Error('Failed to fetch dashboard statistics');
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -124,34 +127,33 @@ function computeStats(bookings: NeonBooking[]): DashboardStats {
   const today      = new Date().toISOString().split('T')[0];
   const monthStart = `${today.slice(0, 7)}-01`;
 
-  const activeStatuses = new Set(['pending', 'confirmed', 'checked_in']);
-
-  const totalBookings = bookings.length;
-  const pendingBookings = bookings.filter(b => normalizeStatus(b.booking_status) === 'pending').length;
-  const confirmedBookings = bookings.filter(b => normalizeStatus(b.booking_status) === 'confirmed').length;
-  const totalActiveBookings = bookings.filter(b => activeStatuses.has(normalizeStatus(b.booking_status))).length;
+  const pending    = bookings.filter(b => normalizeStatus(b.booking_status) === 'pending');
+  const confirmed  = bookings.filter(b => normalizeStatus(b.booking_status) === 'confirmed');
+  const checkedIn  = bookings.filter(b => normalizeStatus(b.booking_status) === 'checked_in');
+  const active     = [...pending, ...confirmed, ...checkedIn];
 
   return {
-    totalBookings,
-    pendingBookings,
-    confirmedBookings,
-    totalActiveBookings,
+    totalBookings:       bookings.length,
+    pendingBookings:     pending.length,
+    confirmedBookings:   confirmed.length,
+    totalActiveBookings: active.length,
 
     checkInsToday: bookings.filter(b => {
       const s = normalizeStatus(b.booking_status);
-      return b.check_in_date === today && (s === 'pending' || s === 'confirmed' || s === 'checked_in');
+      return b.check_in_date === today && (s === 'pending' || s === 'confirmed');
     }).length,
 
     checkOutsToday: bookings.filter(b => {
       const s = normalizeStatus(b.booking_status);
-      return b.check_out_date === today && (s === 'confirmed' || s === 'checked_in' || s === 'checked_out');
+      return b.check_out_date === today && s === 'checked_in';
     }).length,
 
     monthRevenue: bookings
-      .filter(b =>
-        b.check_in_date >= monthStart &&
-        normalizeStatus(b.booking_status) !== 'cancelled'
-      )
+      .filter(b => {
+        const s = normalizeStatus(b.booking_status);
+        return b.check_in_date >= monthStart &&
+          (s === 'confirmed' || s === 'checked_in' || s === 'checked_out');
+      })
       .reduce((sum, b) => sum + Number(b.total_amount), 0),
   };
 }
@@ -170,31 +172,14 @@ export function formatGHS(amount: number): string {
   }).format(amount);
 }
 
-/** Format a booking date string for table cells without crashing on older/alternate DB values. */
+/** Format ISO date string for table cells. */
 export function formatDate(dateStr: string): string {
-  const value = String(dateStr ?? '').trim();
-  if (!value) {
-    return '—';
-  }
-
-  const candidates = [
-    value.includes('T') || value.includes(' ') ? value.replace(' ', 'T') : `${value}T00:00:00`,
-    value,
-  ];
-
-  for (const candidate of candidates) {
-    const parsed = new Date(candidate);
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed.toLocaleDateString('en-GH', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      });
-    }
-  }
-
-  return '—';
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-GH', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 /** Today's date as YYYY-MM-DD. */

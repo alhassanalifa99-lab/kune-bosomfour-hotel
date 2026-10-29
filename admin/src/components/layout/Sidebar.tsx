@@ -72,7 +72,7 @@ export function Sidebar() {
       <div className="sidebar-footer">
         <div className="demo-banner" role="status">
           <span className="demo-banner-dot" aria-hidden="true" />
-          Connected to Neon Live
+          Offline Ready
         </div>
         <button
           type="button"

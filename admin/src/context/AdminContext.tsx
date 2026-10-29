@@ -436,7 +436,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       handleCheckOut,
       submitWalkIn,
       actionLoadingId,
-      isDemoMode: !isSupabaseConfigured,
+      isDemoMode: false,
       walkInOpen,
       setWalkInOpen,
     }),

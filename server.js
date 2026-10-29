@@ -77,39 +77,40 @@ const ROOM_NAMES = {
 // ══════════════════════════════════════════════════════════════════════════════
 app.get('/api/stats', async (req, res) => {
   try {
-    const [totals, pending, confirmed, active, checkIns, checkOuts, revenue] = await Promise.all([
-      sql`SELECT COUNT(*) AS count FROM bookings`,
-      sql`SELECT COUNT(*) AS count FROM bookings WHERE LOWER(COALESCE(booking_status, '')) IN ('pending', 'pending_confirmation', 'pending confirmation')`,
-      sql`SELECT COUNT(*) AS count FROM bookings WHERE LOWER(COALESCE(booking_status, '')) IN ('confirmed')`,
-      sql`SELECT COUNT(*) AS count
-          FROM bookings
-          WHERE LOWER(COALESCE(booking_status, '')) IN (
-            'pending', 'pending_confirmation', 'pending confirmation', 'confirmed',
-            'checked_in', 'checked in', 'checked_out', 'checked out'
-          )`,
-      sql`SELECT COUNT(*) AS count
-          FROM bookings
+    const [total, pending, confirmed, active, checkIns, checkOuts, revenue] = await Promise.all([
+      // All bookings ever
+      sql`SELECT COUNT(*) FROM bookings`,
+      // Pending = awaiting confirmation
+      sql`SELECT COUNT(*) FROM bookings WHERE booking_status = 'Pending'`,
+      // Confirmed = upcoming confirmed reservations
+      sql`SELECT COUNT(*) FROM bookings WHERE booking_status = 'Confirmed'`,
+      // Active = pending + confirmed + checked in
+      sql`SELECT COUNT(*) FROM bookings
+          WHERE booking_status IN ('Pending', 'Confirmed', 'Checked In')`,
+      // Checking in today
+      sql`SELECT COUNT(*) FROM bookings
           WHERE check_in_date = CURRENT_DATE
-            AND LOWER(COALESCE(booking_status, '')) IN ('pending', 'pending_confirmation', 'pending confirmation', 'confirmed', 'checked_in', 'checked in')`,
-      sql`SELECT COUNT(*) AS count
-          FROM bookings
+            AND booking_status IN ('Pending', 'Confirmed')`,
+      // Checking out today
+      sql`SELECT COUNT(*) FROM bookings
           WHERE check_out_date = CURRENT_DATE
-            AND LOWER(COALESCE(booking_status, '')) IN ('confirmed', 'checked_in', 'checked in', 'checked_out', 'checked out')`,
+            AND booking_status = 'Checked In'`,
+      // Month revenue
       sql`SELECT COALESCE(SUM(total_amount), 0) AS total
           FROM bookings
-          WHERE LOWER(COALESCE(booking_status, '')) NOT IN ('cancelled', 'canceled')
+          WHERE booking_status IN ('Confirmed', 'Checked In', 'Checked Out')
             AND DATE_TRUNC('month', check_in_date) = DATE_TRUNC('month', CURRENT_DATE)`
     ]);
 
     res.json({
-      success: true,
-      totalBookings:         parseInt(totals[0].count)      || 0,
-      pendingBookings:       parseInt(pending[0].count)     || 0,
-      confirmedBookings:     parseInt(confirmed[0].count)   || 0,
-      totalActiveBookings:   parseInt(active[0].count)      || 0,
-      checkingInToday:       parseInt(checkIns[0].count)    || 0,
-      checkingOutToday:      parseInt(checkOuts[0].count)   || 0,
-      currentMonthRevenue:   parseFloat(revenue[0].total)   || 0
+      success:             true,
+      totalBookings:       parseInt(total[0].count)     || 0,
+      pendingBookings:     parseInt(pending[0].count)   || 0,
+      confirmedBookings:   parseInt(confirmed[0].count) || 0,
+      totalActiveBookings: parseInt(active[0].count)    || 0,
+      checkingInToday:     parseInt(checkIns[0].count)  || 0,
+      checkingOutToday:    parseInt(checkOuts[0].count) || 0,
+      currentMonthRevenue: parseFloat(revenue[0].total) || 0
     });
   } catch (err) {
     console.error('Stats error:', err.message);
@@ -338,64 +339,53 @@ app.patch('/api/rooms/:id/status', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// PATCH /api/rooms/:id/price  — Update room price per night (admin)
+// ══════════════════════════════════════════════════════════════════════════════
+app.patch('/api/rooms/:id/price', async (req, res) => {
+  try {
+    const { id }    = req.params;
+    const { price } = req.body;
+    const parsed    = parseFloat(price);
+
+    if (isNaN(parsed) || parsed <= 0) {
+      return res.status(400).json({ success: false, error: 'Price must be a positive number.' });
+    }
+
+    const [room] = await sql`
+      UPDATE rooms SET price_per_night = ${parsed} WHERE id = ${id} RETURNING *
+    `;
+    if (!room) return res.status(404).json({ success: false, error: 'Room not found.' });
+
+    res.json({ success: true, room });
+  } catch (err) {
+    console.error('Room price error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // PATCH /api/bookings/:id/status  — Update booking status (check in / out)
 // ══════════════════════════════════════════════════════════════════════════════
-function normalizeBookingStatusValue(status) {
-  const value = String(status ?? '').trim();
-  if (!value) return null;
-
-  const normalized = value
-    .toLowerCase()
-    .replace(/[_\s-]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-
-  const map = {
-    pending: 'Pending',
-    pending_confirmation: 'Pending',
-    confirmed: 'Confirmed',
-    checked_in: 'Checked In',
-    check_in: 'Checked In',
-    checked_out: 'Checked Out',
-    check_out: 'Checked Out',
-    cancelled: 'Cancelled',
-  };
-
-  return map[normalized] || null;
-}
-
 app.patch('/api/bookings/:id/status', async (req, res) => {
   try {
     const { id }     = req.params;
     const { status } = req.body;
-    const normalizedStatus = normalizeBookingStatusValue(status);
 
     const allowed = ['Pending', 'Confirmed', 'Checked In', 'Checked Out', 'Cancelled'];
-    if (!normalizedStatus || !allowed.includes(normalizedStatus)) {
+    if (!allowed.includes(status)) {
       return res.status(400).json({ success: false, error: `Status must be one of: ${allowed.join(', ')}` });
     }
 
     const [booking] = await sql`
-      WITH updated AS (
-        UPDATE bookings
-        SET booking_status = ${normalizedStatus}
-        WHERE id = ${id}
-        RETURNING *
-      )
-      SELECT
-        u.*,
-        r.room_number,
-        r.room_type,
-        r.price_per_night
-      FROM updated u
-      LEFT JOIN rooms r ON u.room_id = r.id
+      UPDATE bookings SET booking_status = ${status} WHERE id = ${id} RETURNING *
     `;
     if (!booking) return res.status(404).json({ success: false, error: 'Booking not found.' });
 
     // Auto-update linked room status when guest checks in / out
     if (booking.room_id) {
-      if (normalizedStatus === 'Checked In') {
+      if (status === 'Checked In') {
         await sql`UPDATE rooms SET status = 'Occupied'  WHERE id = ${booking.room_id}`;
-      } else if (normalizedStatus === 'Checked Out') {
+      } else if (status === 'Checked Out') {
         await sql`UPDATE rooms SET status = 'Available' WHERE id = ${booking.room_id}`;
       }
     }
@@ -412,5 +402,5 @@ app.patch('/api/bookings/:id/status', async (req, res) => {
 // Fall back to 5000 for local development
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🔌 Capalot Hotel API running → http://localhost:${PORT}`);
+  console.log(`🔌 Mariam Hotel API running → http://localhost:${PORT}`);
 });
