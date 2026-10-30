@@ -21,7 +21,6 @@ import {
   updateRoomPrice,
   updateRoomStatus,
 } from '../lib/api/rooms';
-import { isSupabaseConfigured } from '../lib/supabase';
 import {
   clearQueuedActions,
   computeDashboardStatsFromBookings,
@@ -174,10 +173,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setStats(data);
       saveCachedStats(data);
     } catch (err) {
-      const cachedStats = getCachedStats() ?? computeDashboardStatsFromBookings(getCachedBookings());
-      if (cachedStats) {
-        setStats(cachedStats);
-        saveCachedStats(cachedStats);
+      const currentBookings = getCachedBookings();
+      const fallbackStats = currentBookings.length > 0
+        ? computeDashboardStatsFromBookings(currentBookings)
+        : getCachedStats();
+      if (fallbackStats) {
+        setStats(fallbackStats);
+        saveCachedStats(fallbackStats);
       }
       setError(err instanceof Error ? err.message : 'Failed to load analytics');
     } finally {

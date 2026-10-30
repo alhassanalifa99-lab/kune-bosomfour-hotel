@@ -81,24 +81,24 @@ app.get('/api/stats', async (req, res) => {
       // All bookings ever
       sql`SELECT COUNT(*) FROM bookings`,
       // Pending = awaiting confirmation
-      sql`SELECT COUNT(*) FROM bookings WHERE booking_status = 'Pending'`,
+      sql`SELECT COUNT(*) FROM bookings WHERE status = 'Pending'`,
       // Confirmed = upcoming confirmed reservations
-      sql`SELECT COUNT(*) FROM bookings WHERE booking_status = 'Confirmed'`,
+      sql`SELECT COUNT(*) FROM bookings WHERE status = 'Confirmed'`,
       // Active = pending + confirmed + checked in
       sql`SELECT COUNT(*) FROM bookings
-          WHERE booking_status IN ('Pending', 'Confirmed', 'Checked In')`,
+          WHERE status IN ('Pending', 'Confirmed', 'Checked In')`,
       // Checking in today
       sql`SELECT COUNT(*) FROM bookings
           WHERE check_in_date = CURRENT_DATE
-            AND booking_status IN ('Pending', 'Confirmed')`,
+            AND status IN ('Pending', 'Confirmed')`,
       // Checking out today
       sql`SELECT COUNT(*) FROM bookings
           WHERE check_out_date = CURRENT_DATE
-            AND booking_status = 'Checked In'`,
+            AND status = 'Checked In'`,
       // Month revenue
       sql`SELECT COALESCE(SUM(total_amount), 0) AS total
           FROM bookings
-          WHERE booking_status IN ('Confirmed', 'Checked In', 'Checked Out')
+          WHERE status IN ('Confirmed', 'Checked In', 'Checked Out')
             AND DATE_TRUNC('month', check_in_date) = DATE_TRUNC('month', CURRENT_DATE)`
     ]);
 
@@ -168,6 +168,7 @@ app.post('/api/bookings', async (req, res) => {
       check_out_date,
       total_amount,
       booking_status,
+      status,
       guest_count,
       special_requests
     } = req.body;
@@ -179,7 +180,7 @@ app.post('/api/bookings', async (req, res) => {
     const safeCheckIn = (check_in_date  || '').trim();
     const safeCheckOut= (check_out_date || '').trim();
     const safeAmount  = parseFloat(total_amount) || 0;
-    const safeStatus  = (booking_status || 'Pending').trim();
+    const safeStatus  = ((status ?? booking_status) || 'Pending').trim();
     const safeGuests  = parseInt(guest_count) || 1;
     const safeRequests= (special_requests || 'None').trim();
 
@@ -236,7 +237,7 @@ app.post('/api/bookings', async (req, res) => {
             guest_name, guest_email, guest_phone,
             room_id, room_name,
             check_in_date, check_out_date,
-            total_amount, booking_status,
+            total_amount, status,
             guest_count, special_requests
           ) VALUES (
             ${safeGuest}, ${safeEmail}, ${safePhone},
@@ -254,7 +255,7 @@ app.post('/api/bookings', async (req, res) => {
             guest_name, guest_email, guest_phone,
             room_name,
             check_in_date, check_out_date,
-            total_amount, booking_status,
+            total_amount, status,
             guest_count, special_requests
           ) VALUES (
             ${safeGuest}, ${safeEmail}, ${safePhone},
@@ -288,7 +289,7 @@ app.post('/api/bookings', async (req, res) => {
           check_in_date:    safeCheckIn,
           check_out_date:   safeCheckOut,
           total_amount:     safeAmount,
-          booking_status:   safeStatus,
+          status:           safeStatus,
           guest_count:      safeGuests,
           special_requests: safeRequests
         };
@@ -377,7 +378,7 @@ app.patch('/api/bookings/:id/status', async (req, res) => {
     }
 
     const [booking] = await sql`
-      UPDATE bookings SET booking_status = ${status} WHERE id = ${id} RETURNING *
+      UPDATE bookings SET status = ${status} WHERE id = ${id} RETURNING *
     `;
     if (!booking) return res.status(404).json({ success: false, error: 'Booking not found.' });
 

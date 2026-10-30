@@ -14,15 +14,16 @@ interface NeonBooking {
   check_in_date: string;
   check_out_date: string;
   total_amount: number;
-  booking_status: string;
+  status?: string;
+  booking_status?: string;
   guest_count: number;
   special_requests: string;
   created_at: string;
 }
 
 // ─── Normalise booking_status to lowercase with underscores ──────────────────
-function normalizeStatus(status: string): string {
-  return (status || '')
+function normalizeStatus(status?: string | null): string {
+  return String(status ?? '')
     .toLowerCase()
     .replace(/\s+/g, '_');
 }
@@ -127,9 +128,9 @@ function computeStats(bookings: NeonBooking[]): DashboardStats {
   const today      = new Date().toISOString().split('T')[0];
   const monthStart = `${today.slice(0, 7)}-01`;
 
-  const pending    = bookings.filter(b => normalizeStatus(b.booking_status) === 'pending');
-  const confirmed  = bookings.filter(b => normalizeStatus(b.booking_status) === 'confirmed');
-  const checkedIn  = bookings.filter(b => normalizeStatus(b.booking_status) === 'checked_in');
+  const pending    = bookings.filter(b => normalizeStatus(b.status ?? b.booking_status) === 'pending');
+  const confirmed  = bookings.filter(b => normalizeStatus(b.status ?? b.booking_status) === 'confirmed');
+  const checkedIn  = bookings.filter(b => normalizeStatus(b.status ?? b.booking_status) === 'checked_in');
   const active     = [...pending, ...confirmed, ...checkedIn];
 
   return {
@@ -139,18 +140,18 @@ function computeStats(bookings: NeonBooking[]): DashboardStats {
     totalActiveBookings: active.length,
 
     checkInsToday: bookings.filter(b => {
-      const s = normalizeStatus(b.booking_status);
+      const s = normalizeStatus(b.status ?? b.booking_status);
       return b.check_in_date === today && (s === 'pending' || s === 'confirmed');
     }).length,
 
     checkOutsToday: bookings.filter(b => {
-      const s = normalizeStatus(b.booking_status);
+      const s = normalizeStatus(b.status ?? b.booking_status);
       return b.check_out_date === today && s === 'checked_in';
     }).length,
 
     monthRevenue: bookings
       .filter(b => {
-        const s = normalizeStatus(b.booking_status);
+        const s = normalizeStatus(b.status ?? b.booking_status);
         return b.check_in_date >= monthStart &&
           (s === 'confirmed' || s === 'checked_in' || s === 'checked_out');
       })
